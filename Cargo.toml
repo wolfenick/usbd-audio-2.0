@@ -1,5 +1,5 @@
 [package]
-name = "usbd-audio-2.0"
+name = "usbd-audio-2"
 description = "Audio 2.0 USB class implementation for usb-device"
 authors = ["Ava <ava.codie.wolfe@gmail.com"]
 version = "0.1.0"
