@@ -37,9 +37,6 @@ use usb_device::{
     },
 };
 
-// DEBUG INCLUDE
-use defmt::{println};
-
 // CONSTANTS
 const ID_CLOCK_SRC: u8 = 0x01;
 
