@@ -150,7 +150,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // string index (none)
             0x00, 0x00, // bmControls (none)
             0x00, // terminal desc string index (none)
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             OUTPUT_TERMINAL,
@@ -163,7 +163,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // bmControls (none)
             0x00,
             0x00, // terminal desc string index (none)
-        ]);
+        ]).unwrap();
 
         Ok(())
 
@@ -186,7 +186,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // string index (none)
             0x00, 0x00, //bmControls (none)
             0x00, // terminal desc string index (none)
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             OUTPUT_TERMINAL,
@@ -199,7 +199,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // bmControls (none)
             0x00,
             0x00, // terminal desc string index (none)
-        ]);
+        ]).unwrap();
 
         Ok(())
     }
@@ -218,7 +218,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             AUDIOSTREAMING,
             IP_VERSION_02_00,
             0x00,
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             AS_GENERAL,
@@ -229,14 +229,14 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             self.stream_config.n_channels,
             0x00, 0x00, 0x00, 0x00, // spacial location description (none)
             0x00, // string index (none)
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             FORMAT_TYPE,
             FORMAT_TYPE_I,
             self.stream_config.format.size(),
             self.stream_config.format.res(),
-        ]);
+        ]).unwrap();
 
         // ENDPOINT DESCRIPTORS
         /*
@@ -252,7 +252,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             max_transfer[1],
             max_transfer[0],
             self.endpoint.interval(),
-        ]);
+        ]).unwrap();
 
         writer.write(CS_ENDPOINT, &[
             EP_GENERAL,
@@ -260,7 +260,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // bmControls
             0x00, // bLockDelayUnits
             0x00, 0x00 // wLockDelay
-        ]);
+        ]).unwrap();
 
         Ok(())
 
@@ -279,7 +279,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             AUDIOSTREAMING,
             IP_VERSION_02_00,
             0x00,
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             AS_GENERAL,
@@ -290,14 +290,14 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             self.stream_config.n_channels,
             0x00, 0x00, 0x00, 0x00,
             0x00,
-        ]);
+        ]).unwrap();
 
         writer.write(CS_INTERFACE, &[
             FORMAT_TYPE,
             FORMAT_TYPE_I,
             self.stream_config.format.size(),
             self.stream_config.format.res(),
-        ]);
+        ]).unwrap();
 
         let max_transfer: [u8; 2] = self.stream_config.packet_size();
 
@@ -307,7 +307,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             max_transfer[1],
             max_transfer[0],
             self.endpoint.interval(),
-        ]);
+        ]).unwrap();
 
         writer.write(CS_ENDPOINT, &[
             EP_GENERAL,
@@ -315,7 +315,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             0x00, // bmControls
             0x00, // bLockDelayUnits
             0x00, 0x00 // wLockDelay
-        ]);
+        ]).unwrap();
 
         Ok(())
 
@@ -397,7 +397,7 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
             FUNCTION_SUBCLASS_UNDEFINED,
             AF_VERSION_02_00,
             0x00,
-        ]);
+        ]).unwrap();
 
         // BASE INTERFACE DESCRIPTOR
         writer.interface(self.control_interface, AUDIO, AUDIOCONTROL, IP_VERSION_02_00).unwrap();
@@ -423,7 +423,7 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
             0b00000001, // bmControls: clock frequency read only
             0x00, // assoc terminal (none)
             0x00, // string index (none)
-        ]);
+        ]).unwrap();
 
         // AUDIO CONTROL INTERFACE DESCRIPTORS
         if let Some(ref input) = self.input {
