@@ -241,7 +241,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
         necessary for implicit feedback, or to define the synchronisation type. So,
         this is done manually with the fields filled from the endpoint where needed.
          */
-        let max_transfer: [u8; 2] = self.stream_config.packet_size();
+        let max_transfer: [u8; 2] = self.stream_config.packet_size().to_be_bytes();
 
         writer.write(0x05, &[
             self.endpoint.address().into(),
@@ -296,7 +296,7 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
             self.stream_config.format.res(),
         ]).unwrap();
 
-        let max_transfer: [u8; 2] = self.stream_config.packet_size();
+        let max_transfer: [u8; 2] = self.stream_config.packet_size().to_be_bytes();
 
         writer.write(0x05, &[
             self.endpoint.address().into(),
@@ -625,7 +625,7 @@ impl<'a> AudioClassBuilder<'a> {
                     synchronization: Asynchronous,
                     usage: Data,
                 },
-                input_config.packet_size(),
+                output_config.packet_size(),
                 1
             ).unwrap();
 
