@@ -604,6 +604,10 @@ impl<'a> AudioClassBuilder<'a> {
             clock_index: 0,
         };
 
+        if self.sample_rate == None {
+            panic!("A sample rate must be provided with sample_rate().");
+        }
+
         if let Some(input_config) = self.input {
 
             let input_interface = allocator.interface();
