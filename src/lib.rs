@@ -553,6 +553,7 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
 pub struct AudioClassBuilder<'a> {
     input: Option<StreamConfig<'a>>,
     output: Option<StreamConfig<'a>>,
+    sample_rate: Option<u16>,
     marker: PhantomData<&'a u8>,
 }
 
@@ -562,6 +563,7 @@ impl<'a> AudioClassBuilder<'a> {
         AudioClassBuilder {
             input: None,
             output: None,
+            sample_rate: None,
             marker: PhantomData,
         }
     }
@@ -570,6 +572,7 @@ impl<'a> AudioClassBuilder<'a> {
         AudioClassBuilder {
             input: Some(input),
             output: self.output,
+            sample_rate: self.sample_rate,
             marker: self.marker,
         }
     }
@@ -578,6 +581,16 @@ impl<'a> AudioClassBuilder<'a> {
         AudioClassBuilder {
             input: self.input,
             output: Some(output),
+            sample_rate: self.sample_rate,
+            marker: self.marker,
+        }
+    }
+
+    pub fn sample_rate(self, sample_rate: u16) -> AudioClassBuilder<'a> {
+        AudioClassBuilder {
+            input: self.input,
+            output: self.output,
+            sample_rate: Some(sample_rate),
             marker: self.marker,
         }
     }
