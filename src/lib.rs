@@ -410,7 +410,7 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
             0x00, // bmControls (none)
         ];
 
-        writer.write(CS_INTERFACE, &ac_header);
+        writer.write(CS_INTERFACE, &ac_header).unwrap();
 
         // CLOCK SOURCE DESCRIPTOR
         writer.write(CS_INTERFACE, &[
@@ -444,6 +444,39 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
 
     }
 
+    fn control_out(&mut self, xfer: ControlOut<B>) {
+
+        let req = xfer.request();
+
+        if (
+            req.request_type == RequestType::Standard
+            && req.recipient == Recipient::Interface
+            && req.request == Request::SET_INTERFACE
+        ) {
+
+            let interface = req.index as u8;
+            let alt_setting = req.value as u8;
+
+            if let Some(input) = self.input.as_mut() {
+                if interface == input.interface.into() {
+                    input.alt_setting = alt_setting;
+                    xfer.accept().ok();
+                    return;
+                }
+            }
+
+            if let Some(output) = self.output.as_mut() {
+                if interface == output.interface.into() {
+                    output.alt_setting = alt_setting;
+                    xfer.accept().ok();
+                    return;
+                }
+            }
+
+        }
+
+    }
+
     fn control_in(&mut self, xfer: ControlIn<B>) {
 
         let req = xfer.request();
@@ -474,8 +507,8 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
         else if (
             req.request_type == RequestType::Class
                 && req.recipient == Recipient::Interface
-                && ((req.index as u16) >> 8) as u8 == ID_CLOCK_SRC
-                && ((req.value as u16) >> 8) == 0x01 // clock freq control selector
+                && (req.index >> 8) as u8 == ID_CLOCK_SRC
+                && (req.value >> 8) == 0x01 // clock freq control selector
         ) {
 
             // range request
@@ -510,39 +543,6 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
             }
 
         }
-    }
-
-    fn control_out(&mut self, xfer: ControlOut<B>) {
-
-        let req = xfer.request();
-
-        if (
-            req.request_type == RequestType::Standard
-            && req.recipient == Recipient::Interface
-            && req.request == Request::SET_INTERFACE
-        ) {
-
-            let interface = req.index as u8;
-            let alt_setting = req.value as u8;
-
-            if let Some(input) = self.input.as_mut() {
-                if interface == input.interface.into() {
-                    input.alt_setting = alt_setting;
-                    xfer.accept().ok();
-                    return;
-                }
-            }
-
-            if let Some(output) = self.output.as_mut() {
-                if interface == output.interface.into() {
-                    output.alt_setting = alt_setting;
-                    xfer.accept().ok();
-                    return;
-                }
-            }
-
-        }
-
     }
     
 }
