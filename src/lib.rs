@@ -509,6 +509,8 @@ impl<B: UsbBus, const R: u16> UsbClass<B> for AudioClass<'_, B, R> {
                 && (req.value >> 8) == 0x01 // clock freq control selector
         ) {
 
+            let rate: [u8; 2] = R.to_be_bytes();
+
             // range request
             if (req.request == 0x02) {
                 match self.clock_index {
@@ -522,8 +524,8 @@ impl<B: UsbBus, const R: u16> UsbClass<B> for AudioClass<'_, B, R> {
                     _ => {
                         xfer.accept_with(&[
                             0x01, 0x00, // subranges
-                            0x80, 0x3E, 0x00, 0x00, // min
-                            0x80, 0x3E, 0x00, 0x00, // max
+                            rate[0], rate[1], 0x00, 0x00, // min
+                            rate[0], rate[1], 0x00, 0x00, // max
                             0x01, 0x00, 0x00, 0x00  // res
                         ]).ok();
                         self.clock_index += 1;
@@ -535,7 +537,7 @@ impl<B: UsbBus, const R: u16> UsbClass<B> for AudioClass<'_, B, R> {
             // current value request
             else if (req.request == 0x01) {
                 xfer.accept_with(&[
-                    0x80, 0x3E, 0x00, 0x00
+                    rate[0], rate[1], 0x00, 0x00
                 ]).ok();
                 return;
             }
