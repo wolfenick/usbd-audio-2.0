@@ -83,21 +83,19 @@ impl Format {
 
 }
 
-pub struct StreamConfig<'a> {
+pub struct StreamConfig<'a, const R: u16> {
     format: Format,
-    rate: u16,
     term_type: TerminalType,
     n_channels: u8,
     marker: PhantomData<&'a u8>,
 }
 
-impl<'a> StreamConfig<'a> {
+impl<'a, const R:u16> StreamConfig<'a, R> {
 
-    pub fn new(format: Format, rate: u16, n_channels: u8, term_type: TerminalType) -> Result<StreamConfig<'a>>{
+    pub fn new(format: Format, n_channels: u8, term_type: TerminalType) -> Result<StreamConfig<'a, R>>{
         Ok(
             StreamConfig {
                 format,
-                rate,
                 n_channels,
                 term_type,
                 marker: PhantomData
@@ -110,7 +108,7 @@ impl<'a> StreamConfig<'a> {
         let size = self.format.size() * self.n_channels;
 
         // this integer division causes a necessary floor round
-        let samples = (self.rate / 1000);
+        let samples = (R / 1000);
 
         // we need to satisfy n + 1 audio samples as the maximum for feedback compensation
         (samples + 1) * size
@@ -121,14 +119,14 @@ impl<'a> StreamConfig<'a> {
 
 
 /// AUDIO STREAM
-pub struct AudioStream<'a, B: UsbBus, D: EndpointDirection> {
-    stream_config: StreamConfig<'a>,
+pub struct AudioStream<'a, B: UsbBus, D: EndpointDirection, const R: u16> {
+    stream_config: StreamConfig<'a, R>,
     interface: InterfaceNumber,
     endpoint: Endpoint<'a, B, D>,
     alt_setting: u8,
 }
 
-impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
+impl<'a, B: UsbBus, D: EndpointDirection, const R: u16> AudioStream<'a, B, D, R> {
 
     fn input_ac_descriptor(&self, writer: &mut DescriptorWriter) -> usb_device::Result<()> {
 
@@ -323,14 +321,14 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
 
 
 /// AUDIO CLASS
-pub struct AudioClass<'a, B: UsbBus> {
+pub struct AudioClass<'a, B: UsbBus, const R: u16> {
     control_interface: InterfaceNumber,
-    input: Option<AudioStream<'a, B, In>>,
-    output: Option<AudioStream<'a, B, Out>>,
+    input: Option<AudioStream<'a, B, In, R>>,
+    output: Option<AudioStream<'a, B, Out, R>>,
     clock_index: u8,
 }
 
-impl<B: UsbBus> AudioClass<'_, B> {
+impl<B: UsbBus, const R: u16> AudioClass<'_, B, R> {
 
     /// Read audio frames as output by the host. Returns an Error if no output
     /// stream has been configured.
@@ -374,7 +372,7 @@ impl<B: UsbBus> AudioClass<'_, B> {
 
 }
 
-impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
+impl<B: UsbBus, const R: u16> UsbClass<B> for AudioClass<'_, B, R> {
 
     fn get_configuration_descriptors(&self, writer: &mut DescriptorWriter) -> usb_device::Result<()> {
 
@@ -550,52 +548,39 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
 
 
 /// AUDIO CLASS BUILDER
-pub struct AudioClassBuilder<'a> {
-    input: Option<StreamConfig<'a>>,
-    output: Option<StreamConfig<'a>>,
-    sample_rate: Option<u16>,
+pub struct AudioClassBuilder<'a, const R: u16> {
+    input: Option<StreamConfig<'a, R>>,
+    output: Option<StreamConfig<'a, R>>,
     marker: PhantomData<&'a u8>,
 }
 
-impl<'a> AudioClassBuilder<'a> {
+impl<'a, const R: u16> AudioClassBuilder<'a, R> {
 
-    pub fn new() -> AudioClassBuilder<'static> {
+    pub fn new() -> AudioClassBuilder<'static, R> {
         AudioClassBuilder {
             input: None,
             output: None,
-            sample_rate: None,
             marker: PhantomData,
         }
     }
 
-    pub fn input(self, input: StreamConfig<'a>) -> AudioClassBuilder<'a> {
+    pub fn input(self, input: StreamConfig<'a, R>) -> AudioClassBuilder<'a, R> {
         AudioClassBuilder {
             input: Some(input),
             output: self.output,
-            sample_rate: self.sample_rate,
             marker: self.marker,
         }
     }
 
-    pub fn output(self, output: StreamConfig<'a>) -> AudioClassBuilder<'a> {
+    pub fn output(self, output: StreamConfig<'a, R>) -> AudioClassBuilder<'a, R> {
         AudioClassBuilder {
             input: self.input,
             output: Some(output),
-            sample_rate: self.sample_rate,
             marker: self.marker,
         }
     }
 
-    pub fn sample_rate(self, sample_rate: u16) -> AudioClassBuilder<'a> {
-        AudioClassBuilder {
-            input: self.input,
-            output: self.output,
-            sample_rate: Some(sample_rate),
-            marker: self.marker,
-        }
-    }
-
-    pub fn build<B: UsbBus>(self, allocator: &'a UsbBusAllocator<B>) -> Result<AudioClass<'a, B>> {
+    pub fn build<B: UsbBus>(self, allocator: &'a UsbBusAllocator<B>) -> Result<AudioClass<'a, B, R>> {
 
         let mut ac = AudioClass {
             control_interface: allocator.interface(),
@@ -603,10 +588,6 @@ impl<'a> AudioClassBuilder<'a> {
             output: None,
             clock_index: 0,
         };
-
-        if self.sample_rate == None {
-            panic!("A sample rate must be provided with sample_rate().");
-        }
 
         if let Some(input_config) = self.input {
 
