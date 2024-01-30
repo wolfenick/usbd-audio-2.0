@@ -83,21 +83,19 @@ impl Format {
 
 }
 
-pub struct StreamConfig<'a> {
+pub struct StreamConfig<'a, const R: u16> {
     format: Format,
-    rate: u16,
     term_type: TerminalType,
     n_channels: u8,
     marker: PhantomData<&'a u8>,
 }
 
-impl<'a> StreamConfig<'a> {
+impl<'a, const R:u16> StreamConfig<'a, R> {
 
-    pub fn new(format: Format, rate: u16, n_channels: u8, term_type: TerminalType) -> Result<StreamConfig<'a>>{
+    pub fn new(format: Format, n_channels: u8, term_type: TerminalType) -> Result<StreamConfig<'a, R>>{
         Ok(
             StreamConfig {
                 format,
-                rate,
                 n_channels,
                 term_type,
                 marker: PhantomData
@@ -110,7 +108,7 @@ impl<'a> StreamConfig<'a> {
         let size = self.format.size() * self.n_channels;
 
         // this integer division causes a necessary floor round
-        let samples = (self.rate / 1000);
+        let samples = (R / 1000);
 
         // we need to satisfy n + 1 audio samples as the maximum for feedback compensation
         (samples + 1) * size
@@ -121,14 +119,14 @@ impl<'a> StreamConfig<'a> {
 
 
 /// AUDIO STREAM
-pub struct AudioStream<'a, B: UsbBus, D: EndpointDirection> {
-    stream_config: StreamConfig<'a>,
+pub struct AudioStream<'a, B: UsbBus, D: EndpointDirection, const R: u16> {
+    stream_config: StreamConfig<'a, R>,
     interface: InterfaceNumber,
     endpoint: Endpoint<'a, B, D>,
     alt_setting: u8,
 }
 
-impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
+impl<'a, B: UsbBus, D: EndpointDirection, const R: u16> AudioStream<'a, B, D, R> {
 
     fn input_ac_descriptor(&self, writer: &mut DescriptorWriter) -> usb_device::Result<()> {
 
@@ -323,14 +321,14 @@ impl<'a, B: UsbBus, D: EndpointDirection> AudioStream<'a, B, D> {
 
 
 /// AUDIO CLASS
-pub struct AudioClass<'a, B: UsbBus> {
+pub struct AudioClass<'a, B: UsbBus, const R: u16> {
     control_interface: InterfaceNumber,
-    input: Option<AudioStream<'a, B, In>>,
-    output: Option<AudioStream<'a, B, Out>>,
+    input: Option<AudioStream<'a, B, In, R>>,
+    output: Option<AudioStream<'a, B, Out, R>>,
     clock_index: u8,
 }
 
-impl<B: UsbBus> AudioClass<'_, B> {
+impl<B: UsbBus, const R: u16> AudioClass<'_, B, R> {
 
     /// Read audio frames as output by the host. Returns an Error if no output
     /// stream has been configured.
@@ -374,7 +372,7 @@ impl<B: UsbBus> AudioClass<'_, B> {
 
 }
 
-impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
+impl<B: UsbBus, const R: u16> UsbClass<B> for AudioClass<'_, B, R> {
 
     fn get_configuration_descriptors(&self, writer: &mut DescriptorWriter) -> usb_device::Result<()> {
 
@@ -410,7 +408,7 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
             0x00, // bmControls (none)
         ];
 
-        writer.write(CS_INTERFACE, &ac_header);
+        writer.write(CS_INTERFACE, &ac_header).unwrap();
 
         // CLOCK SOURCE DESCRIPTOR
         writer.write(CS_INTERFACE, &[
@@ -442,74 +440,6 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
 
         Ok(())
 
-    }
-
-    fn control_in(&mut self, xfer: ControlIn<B>) {
-
-        let req = xfer.request();
-
-        if (
-            req.request_type == RequestType::Standard
-            && req.recipient == Recipient::Interface
-            && req.request == Request::GET_INTERFACE
-            && req.length == 1
-        ) {
-            let interface = req.index as u8;
-
-            if let Some(input) = self.input.as_ref() {
-                if interface == input.interface.into() {
-                    xfer.accept_with(&[input.alt_setting]).ok();
-                    return;
-                }
-            }
-
-            if let Some(output) = self.output.as_ref() {
-                if interface == output.interface.into() {
-                    xfer.accept_with(&[output.alt_setting]).ok();
-                    return;
-                }
-            }
-        }
-
-        else if (
-            req.request_type == RequestType::Class
-                && req.recipient == Recipient::Interface
-                && ((req.index as u16) >> 8) as u8 == ID_CLOCK_SRC
-                && ((req.value as u16) >> 8) == 0x01 // clock freq control selector
-        ) {
-
-            // range request
-            if (req.request == 0x02) {
-                match self.clock_index {
-                    0 => {
-                        xfer.accept_with(&[
-                            0x01, 0x00
-                        ]).ok();
-                        self.clock_index = 1;
-                        return;
-                    }
-                    _ => {
-                        xfer.accept_with(&[
-                            0x01, 0x00, // subranges
-                            0x80, 0x3E, 0x00, 0x00, // min
-                            0x80, 0x3E, 0x00, 0x00, // max
-                            0x01, 0x00, 0x00, 0x00  // res
-                        ]).ok();
-                        self.clock_index += 1;
-                        return;
-                    }
-                }
-            }
-
-            // current value request
-            else if (req.request == 0x01) {
-                xfer.accept_with(&[
-                    0x80, 0x3E, 0x00, 0x00
-                ]).ok();
-                return;
-            }
-
-        }
     }
 
     fn control_out(&mut self, xfer: ControlOut<B>) {
@@ -544,21 +474,91 @@ impl<B: UsbBus> UsbClass<B> for AudioClass<'_, B> {
         }
 
     }
+
+    fn control_in(&mut self, xfer: ControlIn<B>) {
+
+        let req = xfer.request();
+
+        if (
+            req.request_type == RequestType::Standard
+            && req.recipient == Recipient::Interface
+            && req.request == Request::GET_INTERFACE
+            && req.length == 1
+        ) {
+            let interface = req.index as u8;
+
+            if let Some(input) = self.input.as_ref() {
+                if interface == input.interface.into() {
+                    xfer.accept_with(&[input.alt_setting]).ok();
+                    return;
+                }
+            }
+
+            if let Some(output) = self.output.as_ref() {
+                if interface == output.interface.into() {
+                    xfer.accept_with(&[output.alt_setting]).ok();
+                    return;
+                }
+            }
+        }
+
+        else if (
+            req.request_type == RequestType::Class
+                && req.recipient == Recipient::Interface
+                && (req.index >> 8) as u8 == ID_CLOCK_SRC
+                && (req.value >> 8) == 0x01 // clock freq control selector
+        ) {
+
+            let rate: [u8; 2] = R.to_be_bytes();
+
+            // range request
+            if (req.request == 0x02) {
+                match self.clock_index {
+                    0 => {
+                        xfer.accept_with(&[
+                            0x01, 0x00
+                        ]).ok();
+                        self.clock_index = 1;
+                        return;
+                    }
+                    _ => {
+                        xfer.accept_with(&[
+                            0x01, 0x00, // subranges
+                            rate[0], rate[1], 0x00, 0x00, // min
+                            rate[0], rate[1], 0x00, 0x00, // max
+                            0x01, 0x00, 0x00, 0x00  // res
+                        ]).ok();
+                        self.clock_index += 1;
+                        return;
+                    }
+                }
+            }
+
+            // current value request
+            else if (req.request == 0x01) {
+                xfer.accept_with(&[
+                    rate[0], rate[1], 0x00, 0x00
+                ]).ok();
+                return;
+            }
+
+        }
+    }
     
 }
 
 
 
 /// AUDIO CLASS BUILDER
-pub struct AudioClassBuilder<'a> {
-    input: Option<StreamConfig<'a>>,
-    output: Option<StreamConfig<'a>>,
+pub struct AudioClassBuilder<'a, const R: u16> {
+    input: Option<StreamConfig<'a, R>>,
+    output: Option<StreamConfig<'a, R>>,
     marker: PhantomData<&'a u8>,
 }
 
-impl<'a> AudioClassBuilder<'a> {
+impl<'a, const R: u16> AudioClassBuilder<'a, R> {
 
-    pub fn new() -> AudioClassBuilder<'static> {
+    pub fn new() -> AudioClassBuilder<'static, R> {
         AudioClassBuilder {
             input: None,
             output: None,
@@ -566,7 +566,7 @@ impl<'a> AudioClassBuilder<'a> {
         }
     }
 
-    pub fn input(self, input: StreamConfig<'a>) -> AudioClassBuilder<'a> {
+    pub fn input(self, input: StreamConfig<'a, R>) -> AudioClassBuilder<'a, R> {
         AudioClassBuilder {
             input: Some(input),
             output: self.output,
@@ -574,7 +574,7 @@ impl<'a> AudioClassBuilder<'a> {
         }
     }
 
-    pub fn output(self, output: StreamConfig<'a>) -> AudioClassBuilder<'a> {
+    pub fn output(self, output: StreamConfig<'a, R>) -> AudioClassBuilder<'a, R> {
         AudioClassBuilder {
             input: self.input,
             output: Some(output),
@@ -582,7 +582,7 @@ impl<'a> AudioClassBuilder<'a> {
         }
     }
 
-    pub fn build<B: UsbBus>(self, allocator: &'a UsbBusAllocator<B>) -> Result<AudioClass<'a, B>> {
+    pub fn build<B: UsbBus>(self, allocator: &'a UsbBusAllocator<B>) -> Result<AudioClass<'a, B, R>> {
 
         let mut ac = AudioClass {
             control_interface: allocator.interface(),
